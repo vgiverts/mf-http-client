@@ -2,7 +2,7 @@ MarsFog HTTP Client is a simple Scala wrapper on the Netty HTTP libraries.
 
 It uses the `GenericObjectPool` from Apache Commons to pool and re-use HTTP connections and the `ArrayBlockingQueue` from the JDK to queue requests if the connection pool is exhausted.
 
-It was created to address bugs and deficiencies in the Ning Async HTTP Client.
+It was created to address bugs and deficiencies in the Ning Async HTTP Client that become apparent under heavy load.
 
 Example
 ----
