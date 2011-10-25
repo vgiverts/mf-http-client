@@ -10,7 +10,7 @@ Example
     val maxConnsPerHost = 5
     val queueLengthPerHost = 5
     val blockIfQueueFull = false
-    val client: HttpClient = new HttpClient(maxConnsPerHost, queueLengthPerHost, blockIfQueueFull);`
+    val client: HttpClient = new HttpClient(maxConnsPerHost, queueLengthPerHost, blockIfQueueFull);
 
 
 ###Make a call
@@ -18,7 +18,7 @@ Example
     val future = client.execute("http://www.google.com/search?q=marsfog", HttpMethod.GET)
 
 
-###Get the result
+###Get the response
 
     val response:HttpResponse = future.get()
 
@@ -28,9 +28,9 @@ Example
     val futures = (0 to 9).map(i => client.execute("http://www.google.com/search?q=marsfog", HttpMethod.GET))
 
 
-###You can check the results (later, if you like)
+###Get the responses (later, if you like)
 
-    futures.foreach(_.get().getContent)
+    val responses = futures.foreach(_.get().getContent)
 
 
 Maven dependency
