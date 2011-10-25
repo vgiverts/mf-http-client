@@ -15,8 +15,21 @@ Example
 
 ###Make a call
 
-    client.execute("http://www.google.com/search?q=marsfog", HttpMethod.GET)
+    val future = client.execute("http://www.google.com/search?q=marsfog", HttpMethod.GET)
 
+
+###Get the result
+
+    val response:HttpResponse = future.get()
+
+
+###Make lots of calls
+
+    val futures = (0 to 9).map(i => client.execute("http://www.google.com/search?q=marsfog", HttpMethod.GET))
+
+###You can fire-and-forget or you can check their results
+
+    futures.foreach(_.get().getContent)
 
 Maven dependency
 ----
