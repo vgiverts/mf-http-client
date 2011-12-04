@@ -47,6 +47,7 @@ class HttpHostConnectionManager(hostId: HostId, config: GenericObjectPool.Config
         val future = queue.poll(300, TimeUnit.MILLISECONDS)
         if (future != null) {
           ctx.setAttachment(future)
+          future.setChannelCtx(ctx)
           ctx.getChannel.write(future.req)
           return;
         }
@@ -56,10 +57,15 @@ class HttpHostConnectionManager(hostId: HostId, config: GenericObjectPool.Config
 
 
   override def channelClosed(ctx: ChannelHandlerContext, e: ChannelStateEvent) {
-    if (ctx.getAttachment != null) {
-      ctx.getAttachment.asInstanceOf[HttpFuture].setFailed(new RuntimeException("Connection closed."))
-      ctx.setAttachment(null)
-      connectionPool.returnObject(ctx)
+    // Synchronize on the context to prevent a race condition. See executeRequest(HttpRequest) for details.
+    ctx.synchronized {
+      if (ctx.getAttachment != null) {
+        ctx.getAttachment.asInstanceOf[HttpFuture].setFailed(new RuntimeException("Connection closed."))
+        ctx.setAttachment(null)
+
+        // Only return the object if the attachment is NULL, because that means it was actually borrowed.
+        connectionPool.returnObject(ctx)
+      }
     }
   }
 
@@ -68,8 +74,6 @@ class HttpHostConnectionManager(hostId: HostId, config: GenericObjectPool.Config
     ctx.getChannel.close
     if (ctx.getAttachment != null) {
       ctx.getAttachment.asInstanceOf[HttpFuture].setFailed(e.getCause)
-      ctx.setAttachment(null)
-      connectionPool.returnObject(ctx)
     }
   }
 
@@ -81,15 +85,39 @@ class HttpHostConnectionManager(hostId: HostId, config: GenericObjectPool.Config
     val future: HttpFuture = new HttpFuture(req)
     try {
       val ctx: ChannelHandlerContext = connectionPool.borrowObject.asInstanceOf[ChannelHandlerContext]
-      ctx.setAttachment(future)
-      ctx.getChannel.write(req)
+
+      // Send the request while synchronized on the context. This is to prevent a race condition
+      // where the context gets closed just before the attachment is set, which if allowed to
+      // happen would prevent the channel from being returned to the pool.
+      val requestSent =
+        ctx.synchronized {
+          if (ctx.getChannel.isConnected) {
+            ctx.setAttachment(future)
+            ctx.getChannel.write(req)
+            true
+          }
+          // If the channel wasn't connected, then return it to the pool here, since it won't
+          // be returned in channelClosed(...) because the attachment has not been set.
+          else {
+            connectionPool.returnObject(ctx)
+            false
+          }
+        }
+
+      // If we sent the request, then return the future.
+      if (requestSent) future
+
+      // Otherwise, retry the request.
+      else executeRequest(req)
     }
     catch {
       case e: NoSuchElementException =>
         if (blockIfQueueFull) queue.offer(future)
         else queue.add(future)
+
+        // We just queued the future for future sending, so we can return it now
+        future
     }
-    future
   }
 
 
@@ -106,7 +134,14 @@ class HttpHostConnectionManager(hostId: HostId, config: GenericObjectPool.Config
       channel.getPipeline.getContext(HttpHostConnectionManager.this)
     }
 
-    override def passivateObject(obj: AnyRef) = obj.asInstanceOf[ChannelHandlerContext].setAttachment(null)
+    override def passivateObject(obj: AnyRef) = {
+      val ctx = obj.asInstanceOf[ChannelHandlerContext]
+      val future = ctx.getAttachment.asInstanceOf[HttpFuture]
+      if (future != null) {
+        ctx.setAttachment(null)
+        future.setChannelCtx(null)
+      }
+    }
 
     override def destroyObject(obj: AnyRef) = obj.asInstanceOf[ChannelHandlerContext].getChannel.close
 

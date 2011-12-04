@@ -26,6 +26,8 @@ class HttpClient(maxConnsPerHost: Int, queueLengthPerHost: Int, blockIfQueueFull
   config.maxIdle = maxConnsPerHost
   config.maxActive = maxConnsPerHost
   config.whenExhaustedAction = GenericObjectPool.WHEN_EXHAUSTED_FAIL
+  config.testOnReturn = true
+  config.testOnBorrow = true
 
   private def getConnMgr(hostId: HostId): HttpHostConnectionManager = {
     var c = hostMgrMap.get(hostId)

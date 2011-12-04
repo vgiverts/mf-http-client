@@ -2,6 +2,7 @@ package com.marsfog.http
 
 import org.jboss.netty.handler.codec.http.{HttpRequest, HttpResponse}
 import java.util.concurrent.{ExecutionException, TimeoutException, TimeUnit, Future}
+import org.jboss.netty.channel.ChannelHandlerContext
 
 /**
  * Created by IntelliJ IDEA.
@@ -15,6 +16,13 @@ class HttpFuture(val req: HttpRequest) extends Future[HttpResponse] {
   var done = false
   var response: HttpResponse = null
   var cause: Throwable = null
+  var ctx: ChannelHandlerContext = null
+
+  def setChannelCtx(ctx: ChannelHandlerContext) {
+    synchronized {
+      this.ctx = ctx
+    }
+  }
 
   def setFailed(cause: Throwable) {
     synchronized {
@@ -32,9 +40,9 @@ class HttpFuture(val req: HttpRequest) extends Future[HttpResponse] {
     }
   }
 
-  def getResponse: HttpResponse = if (response != null) response else throw new ExecutionException(cause)
+  private def getResponse: HttpResponse = if (response != null) response else throw new ExecutionException(cause)
 
-  def get(timeout: Long, unit: TimeUnit):HttpResponse = {
+  def get(timeout: Long, unit: TimeUnit): HttpResponse = {
     synchronized {
       if (done)
         getResponse
@@ -42,15 +50,19 @@ class HttpFuture(val req: HttpRequest) extends Future[HttpResponse] {
         this.wait(unit.toMillis(timeout))
         if (done)
           getResponse
-        else
+        else {
+          if (ctx != null) ctx.getChannel.close()
           throw new TimeoutException
+        }
       }
     }
   }
 
-  def get():HttpResponse = get(0, TimeUnit.MILLISECONDS)
+  def get(): HttpResponse = get(0, TimeUnit.MILLISECONDS)
 
-  def isDone = synchronized { done }
+  def isDone = synchronized {
+    done
+  }
 
   def isCancelled = false
 
