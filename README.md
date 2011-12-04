@@ -52,7 +52,7 @@ Maven dependency
         <dependency>
             <groupId>com.marsfog</groupId>
             <artifactId>mf-http-client</artifactId>
-            <version>1.0</version>
+            <version>1.1</version>
         </dependency>
         ...
     </dependencies>
