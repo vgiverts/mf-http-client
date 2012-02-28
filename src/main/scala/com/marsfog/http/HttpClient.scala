@@ -21,7 +21,7 @@ import org.jboss.netty.buffer.{ChannelBuffers, ChannelBuffer}
 class HttpClient(maxConnsPerHost: Int, queueLengthPerHost: Int, blockIfQueueFull: Boolean = false) {
 
   val UTF_8 = Charset.forName("utf-8")
-  val hostMgrMap = new ConcurrentHashMap[HostId, HttpHostConnectionManager]
+  val hostMgrMap = new ConcurrentHashMap[HostId, DebugHttpHostConnectionManager]
   val config = new GenericObjectPool.Config
   config.maxIdle = maxConnsPerHost
   config.maxActive = maxConnsPerHost
@@ -29,10 +29,10 @@ class HttpClient(maxConnsPerHost: Int, queueLengthPerHost: Int, blockIfQueueFull
   config.testOnReturn = true
   config.testOnBorrow = true
 
-  private def getConnMgr(hostId: HostId): HttpHostConnectionManager = {
+  private def getConnMgr(hostId: HostId): DebugHttpHostConnectionManager = {
     var c = hostMgrMap.get(hostId)
     if (c == null) {
-      c = new HttpHostConnectionManager(hostId, config, queueLengthPerHost, blockIfQueueFull)
+      c = new DebugHttpHostConnectionManager(hostId, config, queueLengthPerHost, blockIfQueueFull)
       val oldC = hostMgrMap.putIfAbsent(hostId, c)
       if (oldC != null)
         c = oldC
@@ -79,7 +79,7 @@ class HttpClient(maxConnsPerHost: Int, queueLengthPerHost: Int, blockIfQueueFull
   }
 
   def shutdown() {
-    hostMgrMap.values.toArray(new Array[HttpHostConnectionManager](0)).foreach(_.close)
+    hostMgrMap.values.toArray(new Array[DebugHttpHostConnectionManager](0)).foreach(_.close)
     hostMgrMap.clear()
   }
 }
